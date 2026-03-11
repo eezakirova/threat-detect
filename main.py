@@ -93,3 +93,33 @@ def check_virustotal(ip):
     except Exception as e:
         print(f"EXCEPTION: {e}")
         return {"vt_malicious": 0, "vt_suspicious": 0, "country": "Error"}
+
+
+# 3. АНАЛИЗ И РЕАГИРОВАНИЕ
+def analyze_threats(df):
+    results = []
+
+    # VirusTotal Free API имеет ограничение запросов в минуту.
+    # Добавляем задержку, чтобы скрипт не падал с ошибкой 429.
+    print("[INFO] Начало проверки IP через VirusTotal (с задержкой для Free API)...")
+
+    for index, row in df.iterrows():
+        ip = row['src_ip']
+        vt_data = check_virustotal(ip)
+
+        # Объединяем данные из логов и API
+        row_data = row.to_dict()
+        row_data.update(vt_data)
+        results.append(row_data)
+        # ПРОСТОЕ РЕАГИРОВАНИЕ
+        is_high_risk_log = row['severity'] <= 1
+        is_malicious_api = vt_data['vt_malicious'] > 0
+
+        if is_malicious_api or is_high_risk_log:
+            print(
+                f"   >>> [ALERT] БЛОКИРОВКА ТРАФИКА: {ip} (VT Score: {vt_data['vt_malicious']}, Log Severity: {row['severity']})")
+
+        # Пауза 15 секунд между запросами
+        time.sleep(15)
+
+    return pd.DataFrame(results)

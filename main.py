@@ -123,3 +123,53 @@ def analyze_threats(df):
         time.sleep(15)
 
     return pd.DataFrame(results)
+
+
+# 4. ВИЗУАЛИЗАЦИЯ
+def create_report(df):
+    # Сохранение CSV
+    df.to_csv(REPORT_FILE, index=False)
+    print(f"\n[INFO] Отчет сохранен в {REPORT_FILE}")
+
+    # Построение графика
+    plt.figure(figsize=(10, 6))
+
+    # Данные для графика
+    ips = df['src_ip']
+    counts = df['alert_count']
+    malicious_scores = df['vt_malicious']
+
+    # Цвет столбца: Красный, если VT нашел угрозу, иначе Синий
+    colors = ['red' if score > 0 else 'skyblue' for score in malicious_scores]
+
+    bars = plt.bar(ips, counts, color=colors)
+
+    plt.title('Активность IP-адресов и статус угроз VirusTotal')
+    plt.xlabel('Source IP')
+    plt.ylabel('Количество событий в логах')
+    plt.xticks(rotation=45)
+    plt.tight_layout()
+
+    # Добавляем легенду вручную для цветов
+    from matplotlib.patches import Patch
+    legend_elements = [Patch(facecolor='skyblue', label='Clean/Unknown'),
+                       Patch(facecolor='red', label='Malicious (VirusTotal)')]
+    plt.legend(handles=legend_elements)
+
+    plt.savefig(CHART_FILE)
+    print(f"[INFO] График сохранен в {CHART_FILE}")
+
+
+# --- ЗАПУСК ---
+if __name__ == "__main__":
+    # 1. Загрузка
+    logs_summary = load_and_process_logs()
+
+    if logs_summary is not None and not logs_summary.empty:
+        # 2 & 3. Анализ API и Реагирование
+        final_df = analyze_threats(logs_summary)
+
+        # 4. Отчет
+        create_report(final_df)
+    else:
+        print("[WARN] Нет данных для анализа.")

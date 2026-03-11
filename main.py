@@ -1,5 +1,9 @@
 import os
+import json
+import time
+import requests
 import pandas as pd
+import matplotlib.pyplot as plt
 
 # --- НАСТРОЙКИ ---
 LOG_FILE = 'suricata_logs.json'
@@ -42,3 +46,50 @@ def load_and_process_logs():
 
     summary.rename(columns={'timestamp': 'alert_count'}, inplace=True)
     return summary
+
+
+# 2. ПРОВЕРКА ЧЕРЕЗ API VIRUSTOTAL
+def check_virustotal(ip):
+    """
+    Отправляет запрос к VirusTotal API v3 для проверки IP.
+    """
+    url = f"{VT_API_URL}{ip}"
+    headers = {
+        "x-apikey": API_KEY
+    }
+
+    print(f"[API] Проверка IP: {ip} ...", end=" ")
+
+    try:
+        response = requests.get(url, headers=headers)
+
+        if response.status_code == 200:
+            data = response.json()
+            attributes = data['data']['attributes']
+
+            # Извлекаем статистику
+            stats = attributes['last_analysis_stats']
+            malicious_count = stats.get('malicious', 0)
+            suspicious_count = stats.get('suspicious', 0)
+            country = attributes.get('country', 'Unknown')
+
+            print(f"OK (Malicious: {malicious_count})")
+            return {
+                "vt_malicious": malicious_count,
+                "vt_suspicious": suspicious_count,
+                "country": country
+            }
+
+        elif response.status_code == 429:
+            print("LIMIT EXCEEDED (Слишком много запросов)")
+            return {"vt_malicious": 0, "vt_suspicious": 0, "country": "RateLimit"}
+        elif response.status_code == 404:
+            print("NOT FOUND (IP не найден в базе)")
+            return {"vt_malicious": 0, "vt_suspicious": 0, "country": "Unknown"}
+        else:
+            print(f"ERROR: {response.status_code}")
+            return {"vt_malicious": 0, "vt_suspicious": 0, "country": "Error"}
+
+    except Exception as e:
+        print(f"EXCEPTION: {e}")
+        return {"vt_malicious": 0, "vt_suspicious": 0, "country": "Error"}
